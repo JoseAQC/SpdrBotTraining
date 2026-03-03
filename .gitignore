@@ -1,0 +1,9 @@
+# IsaacLab / RSL-RL run artifacts
+SpdrBot-main/spdrbot3_direct_project/scripts/rsl_rl/logs/
+SpdrBot-main/spdrbot3_direct_project/scripts/rsl_rl/outputs/
+
+# Common RL artifacts
+*.pt
+*.onnx
+*.pkl
+events.out.tfevents*

@@ -7,6 +7,21 @@
 
 """Launch Isaac Sim Simulator first."""
 
+## path error for spdrbot3
+import os
+import sys
+
+THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# train.py está en: spdrbot3_direct_project/scripts/rsl_rl/train.py
+# Subimos hasta spdrbot3_direct_project y añadimos: source/spdrbot3
+PROJECT_ROOT = os.path.abspath(os.path.join(THIS_DIR, "..", ".."))  # -> spdrbot3_direct_project
+SPDRBOT_PKG_ROOT = os.path.join(PROJECT_ROOT, "source", "spdrbot3")
+
+if SPDRBOT_PKG_ROOT not in sys.path:
+    sys.path.insert(0, SPDRBOT_PKG_ROOT)
+## end path error
+
 import argparse
 
 from isaaclab.app import AppLauncher
@@ -54,7 +69,8 @@ from rsl_rl.runners import OnPolicyRunner
 from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+#from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, export_policy_as_jit, export_policy_as_onnx
 
@@ -63,8 +79,10 @@ from isaaclab_tasks.utils import get_checkpoint_path, parse_env_cfg
 
 import spdrbot3.tasks  # noqa: F401
 
+import torch
 
 def main():
+
     """Play with RSL-RL agent."""
     task_name = args_cli.task.split(":")[-1]
     # parse configuration
@@ -116,6 +134,27 @@ def main():
     ppo_runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
     ppo_runner.load(resume_path)
 
+     ## obsnorm error  
+    class IdentityObsNorm(torch.nn.Module):
+        def forward(self, x):
+            return x
+
+    # Intenta sacar el normalizador de donde pueda estar según versión
+    obs_norm = getattr(ppo_runner, "obs_normalizer", None)
+    if obs_norm is None:
+        obs_norm = getattr(getattr(ppo_runner, "alg", None), "obs_normalizer", None)
+    if obs_norm is None:
+        obs_norm = getattr(getattr(ppo_runner, "algo", None), "obs_normalizer", None)
+    if obs_norm is None:
+        obs_norm = getattr(getattr(ppo_runner, "agent", None), "obs_normalizer", None)
+    if obs_norm is None:
+        obs_norm = getattr(getattr(ppo_runner, "policy", None), "obs_normalizer", None)
+
+    if obs_norm is None:
+        print("[WARN] No se encontró obs_normalizer en OnPolicyRunner. Usando normalizador identidad.")
+        obs_norm = IdentityObsNorm()
+    ###
+
     # obtain the trained policy for inference
     policy = ppo_runner.get_inference_policy(device=env.unwrapped.device)
 
@@ -130,15 +169,23 @@ def main():
 
     # export policy to onnx/jit
     export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
-    export_policy_as_jit(policy_nn, ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.pt")
+    #export_policy_as_jit(policy_nn, ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.pt")
+    obs_norm = getattr(ppo_runner, "obs_normalizer", None)
+    export_policy_as_jit(policy_nn, obs_norm, path=export_model_dir, filename="policy.pt")
+    ##
     export_policy_as_onnx(
-        policy_nn, normalizer=ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.onnx"
+        policy_nn, normalizer=obs_norm, path=export_model_dir, filename="policy.onnx"
     )
 
     dt = env.unwrapped.step_dt
 
     # reset environment
-    obs, _ = env.get_observations()
+    # obs, _ = env.get_observations()
+
+    ret = env.get_observations()
+    # En algunas versiones devuelve (obs, info), y en otras devuelve más cosas.
+    obs = ret[0] if isinstance(ret, (tuple, list)) else ret
+
     timestep = 0
     # simulate environment
     while simulation_app.is_running():

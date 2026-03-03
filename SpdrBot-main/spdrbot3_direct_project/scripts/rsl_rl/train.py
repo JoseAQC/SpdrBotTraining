@@ -7,6 +7,21 @@
 
 """Launch Isaac Sim Simulator first."""
 
+## path error for spdrbot3
+import os
+import sys
+
+THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# train.py está en: spdrbot3_direct_project/scripts/rsl_rl/train.py
+# Subimos hasta spdrbot3_direct_project y añadimos: source/spdrbot3
+PROJECT_ROOT = os.path.abspath(os.path.join(THIS_DIR, "..", ".."))  # -> spdrbot3_direct_project
+SPDRBOT_PKG_ROOT = os.path.join(PROJECT_ROOT, "source", "spdrbot3")
+
+if SPDRBOT_PKG_ROOT not in sys.path:
+    sys.path.insert(0, SPDRBOT_PKG_ROOT)
+## end path error
+
 import argparse
 import sys
 
@@ -84,8 +99,23 @@ from isaaclab.envs import (
     multi_agent_to_single_agent,
 )
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.io import dump_pickle, dump_yaml
+## DUMP_PICKLE error
+#from isaaclab.utils.io import dump_pickle, dump_yaml
 
+## Solution
+import os
+import pickle
+import yaml
+
+from isaaclab.utils.io import dump_yaml  # si te funciona; si no, usa el dump_yaml de abajo también.
+
+def dump_pickle(filename: str, data):
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    if not filename.endswith(".pkl"):
+        filename += ".pkl"
+    with open(filename, "wb") as f:
+        pickle.dump(data, f)
+        
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
